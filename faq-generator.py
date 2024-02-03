@@ -7,15 +7,28 @@ from urllib.parse import urlparse
 from markdown_it import MarkdownIt
 from urllib.parse import urljoin
 from dotenv import load_dotenv
-from upstash_redis import Redis
 
 
 load_dotenv()  # load environment variables
+
 client = OpenAI()  # initiliaze openai api
-GITHUB_ACCESS_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN")  # initialize github api
+ 
+# initialize github api
+GITHUB_ACCESS_TOKEN = os.getenv("GITHUB_ACCESS_TOKEN") 
 GITHUB = Github(GITHUB_ACCESS_TOKEN)
 GITHUB_API_BASE = "https://api.github.com/repos/"
 
+# initialize database variables
+UPSTASH_HOST = os.getenv("UPSTASH_HOST")  
+UPSTASH_PORT = int(os.getenv("UPSTASH_PORT"))
+UPSTASH_PASSWORD = os.getenv("UPSTASH_PASSWORD")
+
+# connect to database
+upstash = redis.Redis(
+    host=UPSTASH_HOST,
+    port=UPSTASH_PORT,
+    password=UPSTASH_PASSWORD,
+)
 
 # parse the repo link into username and repo name parts
 # then create repo identifier
@@ -89,19 +102,41 @@ def generate_faq(md_files,faqs):
 def choose_faq(faqs):
     questions = "\n".join(faqs)
     prompt_template = (
-        "Choose the most important 30 questions from the following and answer them:\n\n"
-        "{questions}\n"
+        f"Choose the most important 30 questions from the following\n{questions}\n"
+        f"Before writing answers, at first write the chosen questions, then write your answer\n\n"
     )
-    prompt = prompt_template if len(faqs) > 3 else f"Answer these questions and enumerate them:\n\n{questions}\n"
+    prompt = prompt_template if len(faqs) > 3 else f"Answer these questions and enumerate them:\n{questions}\nBefore writing answers, at first write the current question, then write your answer."
     response = chat(prompt)    
     return response.choices[0].message.content
 
+def store_faq(repo_identifier, last_commit, chosen_faq):
+    key = f"faq:{repo_identifier}:{last_commit}"
+    upstash.set(key, chosen_faq)
 
+def is_repo_in_database(repo_identifier):
+    key = f"last_commit:{repo_identifier}"
+    return upstash.exists(key)
+
+def is_up_to_date(repo_identifier):
+    if not is_repo_in_database(repo_identifier):
+        return False
+    
+    key = f"last_commit:{repo_identifier}"
+    stored_last_commit = upstash.get(key)
+    current_commit = get_latest_commit_id(repo_identifier)
+    return current_commit == stored_last_commit
+
+def get_faq(repo_identifier):
+    last_commit = upstash.get(f"last_commit:{repo_identifier}")
+    faq_key = f"faq:{repo_identifier}:{last_commit}"
+    faq_content = upstash.get(faq_key)
+    return faq_content
+    
 repository_url = 'https://github.com/ie310-hw-org/ie-hw-02'
 repo_identifier = parse_github_url(repository_url)
 markdown_info = parse_markdown_files(repo_identifier, GITHUB_ACCESS_TOKEN,repository_url)
 list = []
 generate_faq(markdown_info,list)
-print(list)
-
+print(choose_faq(list))
+upstash = None
 
