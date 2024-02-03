@@ -1,3 +1,4 @@
+import json
 import os
 import redis
 import requests
@@ -98,45 +99,58 @@ def generate_faq(md_files,faqs):
         faqs.append(faq)
         
     return faqs
-
+    
 def choose_faq(faqs):
     questions = "\n".join(faqs)
-    prompt_template = (
-        f"Choose the most important 30 questions from the following\n{questions}\n"
-        f"Before writing answers, at first write the chosen questions, then write your answer\n\n"
+    prompt = (
+        f"Firstly, choose the most important 30 questions among the following questions.\n"
+        f"If the total number of questions is less than 30, choose all of them.\n"
+        f"{questions}\n"
+        f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question.\n"
+        f"Afterwards, repeat the same process for all chosen questions one by one, rewriting the question first then answering the question under the question.\n"
+        f"I want these question and answer paragraphs enumerated, as well.\n"
+        f"For example:\n"
+        f"1. How to write prompts?\n"
+        f"In order to write prompts, you need to ....\n"
+        f"2. How to edit a written prompt?\n"
+        f"Editing a prompt is easy, you need to.....\n"
     )
-    prompt = prompt_template if len(faqs) > 3 else f"Answer these questions and enumerate them:\n{questions}\nBefore writing answers, at first write the current question, then write your answer."
-    response = chat(prompt)    
+    # prompt = prompt_template if len(faqs) > 3 else f"Answer these questions and enumerate them:\n{questions}\nBefore writing answers, at first write the current question, then write your answer."
+    response = chat(prompt)
     return response.choices[0].message.content
 
-def store_faq(repo_identifier, last_commit, chosen_faq):
-    key = f"faq:{repo_identifier}:{last_commit}"
-    upstash.set(key, chosen_faq)
+def store_faq(repo_identifier,chosen_faq):
+    last_commit = get_latest_commit_id(repo_identifier)
+    value = (chosen_faq,last_commit)
+    json_value = json.dumps(value)
+    upstash.set(repo_identifier, json_value)
 
 def is_repo_in_database(repo_identifier):
-    key = f"last_commit:{repo_identifier}"
-    return upstash.exists(key)
+    return upstash.exists(repo_identifier)
 
 def is_up_to_date(repo_identifier):
     if not is_repo_in_database(repo_identifier):
         return False
     
-    key = f"last_commit:{repo_identifier}"
-    stored_last_commit = upstash.get(key)
+    json_value = upstash.get(repo_identifier)
+    _, stored_last_commit = json.loads(json_value)
     current_commit = get_latest_commit_id(repo_identifier)
     return current_commit == stored_last_commit
 
 def get_faq(repo_identifier):
-    last_commit = upstash.get(f"last_commit:{repo_identifier}")
-    faq_key = f"faq:{repo_identifier}:{last_commit}"
-    faq_content = upstash.get(faq_key)
-    return faq_content
+    json_value = upstash.get(repo_identifier)
+    stored_faq, _ = json.loads(json_value)
+    return stored_faq
     
 repository_url = 'https://github.com/ie310-hw-org/ie-hw-02'
 repo_identifier = parse_github_url(repository_url)
 markdown_info = parse_markdown_files(repo_identifier, GITHUB_ACCESS_TOKEN,repository_url)
 list = []
 generate_faq(markdown_info,list)
-print(choose_faq(list))
+faq = choose_faq(list)
+print(faq)
+# store_faq(repo_identifier,faq)
+# print(get_faq(repo_identifier))
+upstash.close()
 upstash = None
 
