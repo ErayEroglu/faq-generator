@@ -32,23 +32,24 @@ upstash = redis.Redis(
 )
 
 def main():
-    repo_url = 'https://github.com/ErayEroglu/testing_repo'
+    repo_url = 'https://github.com/ErayEroglu/testing_repo' 
     repo_identifier = parse_github_url(repo_url)
     faq = ""
     
-    # if (is_up_to_date(repo_identifier)):
-    #     faq = get_faq(repo_identifier)
-    # else:
-    #     md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
-    #     print(md_info)
-    #     questions = generate_faq(md_info)
-    #     faq = choose_faq(questions) 
-    #     store_faq(repo_identifier,faq)
+    if (is_up_to_date(repo_identifier)):
+        faq = get_faq(repo_identifier)
+    else:
+        md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
+        questions = generate_faq(md_info)
+        faq = choose_faq(questions) 
+        store_faq(repo_identifier,faq)
         
-    md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
-    questions = generate_faq(md_info)
-    faq = choose_faq(questions) 
-    # store_faq(repo_identifier,faq)    
+    # md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
+    # questions = generate_faq(md_info)
+    # chosen_questions = choose_faq(questions)
+    
+    # print(chosen_questions)
+    # # store_faq(repo_identifier,faq)    
     
     print(faq)
 
@@ -100,16 +101,19 @@ def extract_text_from_markdown(parsed_content):
         text_content.append(node.content.strip()) 
     return "".join(text_content)
 
-def chat(prompt):
+def chat(prompt,questions=""):
+    message_history = []
+    
+    if questions != "":
+        message_history.append({"role": "assistant", "content": "Generated FAQ and their answers are :\n"})
+        message_history.append({"role": "assistant", "content": questions})
+    
+    message_history.append({"role": "user", "content": prompt})
+    
     response = client.chat.completions.create(
-            model = "gpt-3.5-turbo",
-            messages = [
-                {
-                "role": "user", 
-                "content": prompt
-                }
-            ]
-        )
+        model = "gpt-3.5-turbo-0125",
+        messages = message_history
+    )
     return response
 
 def generate_faq(md_files):
@@ -118,36 +122,32 @@ def generate_faq(md_files):
     for content in md_files:
         prompt = (
             f"Generate 10 frequently asked questions (FAQ) for the following content.\n"
-            f"Enumarate questions, starting from {index} to {index + 9}\n"
+            f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question.\n"
+            f"Afterwards, repeat the same process for all generated questions one by one, rewriting the question first then answering the question under the question.\n"
+            f"I want these question and answer paragraphs enumerated, starting from {index} to {index + 9}\n"
             f"For example:\n"
             f"{index}. How to write prompts?\n"
-            f"...\n"
-            f"...\n"
+            f"In order to write prompts, you need to ....\n"
             f"{index + 9}. How to edit a written prompt?\n"
+            f"Editing a prompt is easy, you need to.....\n"
             f"Content :\n\n{content}\n"
         )
         response = chat(prompt)
         faq = response.choices[0].message.content
         faqs.append(faq)
         index += 10
-
     return faqs
     
 def choose_faq(faqs):
-    questions = "\n".join(faqs)
+    questions = "\n".join(faqs) 
     prompt = (
-        f"Firstly, choose the most important 30 questions among the following questions.\n"
-        f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question.\n"
-        f"Afterwards, repeat the same process for all chosen questions one by one, rewriting the question first then answering the question under the question.\n"
-        f"I want these question and answer paragraphs enumerated, as well.\n"
-        f"For example:\n"
-        f"1. How to write prompts?\n"
-        f"In order to write prompts, you need to ....\n"
-        f"2. How to edit a written prompt?\n"
-        f"Editing a prompt is easy, you need to.....\n"
-        f"Whole questions :\n{questions}"
+        f"Examine all generated FAQ and their answers, then reorder them by considiring the level of importance,from the most important one to least important one.\n"
+        f"Write the first thirty questions and their answers from the ordered list."
+        # f"Do not write the ordered list, just keep it in your mind\n"
+        # f"Afterwards,return the first 30 questions and their answers from the ordered list of FAQs.\n"
+        # f"Questions : {questions}"
     )
-    response = chat(prompt)
+    response = chat(prompt,questions)
     return response.choices[0].message.content
 
 def store_faq(repo_identifier,chosen_faq):
