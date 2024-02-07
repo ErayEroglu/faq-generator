@@ -32,14 +32,18 @@ upstash = redis.Redis(
 )
 
 def main():
-    repo_url = 'https://github.com/ErayEroglu/testing_repo' 
+    repo_url = 'https://github.com/ErayEroglu/upstash-web' 
     repo_identifier = parse_github_url(repo_url)
     
     if (is_up_to_date(repo_identifier)):
         return get_faq(repo_identifier)
     
     faq = ""    
-    md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)[0]
+    md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
+    
+    if (md_info == -1):  # check if there exists any .md files
+        return "There isn't any .md file in this repostory.Please check the link and repository."
+    
     md_content = md_info[0]
     md_number = md_info[1]
     questions = generate_faq(md_content,md_number)
@@ -86,10 +90,11 @@ def parse_markdown_files(repo_identifier, github_token,repo_url):
             
             markdown_content = response.text
             parsed_content = md.parse(markdown_content)
-            extracted_info.append(extract_text_from_markdown(parsed_content))
+            text = extract_text_from_markdown(parsed_content)
+            extracted_info.append(text)
             number_of_md += 1
-            
-    return extracted_info,number_of_md
+        
+    return (extracted_info,number_of_md) if number_of_md != 0 else -1
 
 def extract_text_from_markdown(parsed_content):
     text_content = []
