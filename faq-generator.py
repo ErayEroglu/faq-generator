@@ -34,24 +34,18 @@ upstash = redis.Redis(
 def main():
     repo_url = 'https://github.com/ErayEroglu/testing_repo' 
     repo_identifier = parse_github_url(repo_url)
-    faq = ""
     
     if (is_up_to_date(repo_identifier)):
-        faq = get_faq(repo_identifier)
-    else:
-        md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
-        questions = generate_faq(md_info)
-        faq = choose_faq(questions) 
-        store_faq(repo_identifier,faq)
-        
-    # md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
-    # questions = generate_faq(md_info)
-    # chosen_questions = choose_faq(questions)
+        return get_faq(repo_identifier)
     
-    # print(chosen_questions)
-    # # store_faq(repo_identifier,faq)    
-    
-    print(faq)
+    faq = ""    
+    md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)[0]
+    md_content = md_info[0]
+    md_number = md_info[1]
+    questions = generate_faq(md_content,md_number)
+    faq = choose_faq(questions) 
+    store_faq(repo_identifier,faq)
+    return faq    
 
 # parse the repo link into username and repo name parts
 # then create repo identifier
@@ -81,7 +75,8 @@ def parse_markdown_files(repo_identifier, github_token,repo_url):
 
     md = MarkdownIt()
     extracted_info = []
-
+    number_of_md = 0
+    
     # extract text parts from md
     for content in contents:
         if content["type"] == "file" and content["name"].lower().endswith(".md"):
@@ -92,8 +87,9 @@ def parse_markdown_files(repo_identifier, github_token,repo_url):
             markdown_content = response.text
             parsed_content = md.parse(markdown_content)
             extracted_info.append(extract_text_from_markdown(parsed_content))
+            number_of_md += 1
             
-    return extracted_info
+    return extracted_info,number_of_md
 
 def extract_text_from_markdown(parsed_content):
     text_content = []
@@ -116,19 +112,21 @@ def chat(prompt,questions=""):
     )
     return response
 
-def generate_faq(md_files):
+def generate_faq(md_files, number_of_md):
     faqs = []
     index = 1
+    number_of_questions = 10 if number_of_md > 2 else 30//number_of_md
+    
     for content in md_files:
         prompt = (
-            f"Generate 10 frequently asked questions (FAQ) for the following content.\n"
+            f"Generate {number_of_questions} frequently asked questions (FAQ) for the following content.\n"
             f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question.\n"
             f"Afterwards, repeat the same process for all generated questions one by one, rewriting the question first then answering the question under the question.\n"
-            f"I want these question and answer paragraphs enumerated, starting from {index} to {index + 9}\n"
+            f"I want these question and answer paragraphs enumerated, starting from {index} to {index + number_of_questions - 1}\n"
             f"For example:\n"
             f"{index}. How to write prompts?\n"
             f"In order to write prompts, you need to ....\n"
-            f"{index + 9}. How to edit a written prompt?\n"
+            f"{index + number_of_questions -1}. How to edit a written prompt?\n"
             f"Editing a prompt is easy, you need to.....\n"
             f"Content :\n\n{content}\n"
         )
@@ -143,9 +141,6 @@ def choose_faq(faqs):
     prompt = (
         f"Examine all generated FAQ and their answers, then reorder them by considiring the level of importance,from the most important one to least important one.\n"
         f"Write the first thirty questions and their answers from the ordered list."
-        # f"Do not write the ordered list, just keep it in your mind\n"
-        # f"Afterwards,return the first 30 questions and their answers from the ordered list of FAQs.\n"
-        # f"Questions : {questions}"
     )
     response = chat(prompt,questions)
     return response.choices[0].message.content
@@ -173,6 +168,7 @@ def get_faq(repo_identifier):
     stored_faq, _ = json.loads(json_value)
     return stored_faq
 
-main()
+faq = main()
+print(faq)
 upstash.close()
 upstash = None
