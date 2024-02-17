@@ -12,7 +12,19 @@ def generate_faq_route():
         if url:
             try:
                 faq = generate_faq(url)
-                return jsonify({'faq': faq})
+                faq_items = faq.split("\n")
+
+                for item in faq_items:
+                    if item.startswith('1'):
+                        break
+                    faq_items.remove(item)
+                    
+                for item in faq_items:
+                    if item == "":
+                        faq_items.remove(item)
+
+                return jsonify({'faq': faq_items})
+            
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
         else:

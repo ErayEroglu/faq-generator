@@ -180,7 +180,19 @@ def get_faq(repo_identifier):
     stored_faq, _ = json.loads(json_value)
     return stored_faq
 
-# faq = main("https://github.com/ie310-hw-org/ie-hw-03")
-# print(faq)
+# faq = main("https://github.com/ErayEroglu/testing_repo")
+
+# faq_items = faq.split("\n")
+
+# for item in faq_items:
+#     if item.startswith('1'):
+#         break
+#     faq_items.remove(item)
+    
+# for item in faq_items:
+#     if item == "":
+#         faq_items.remove(item)
+        
+# print(faq_items)
 # upstash.close()
 # upstash = None

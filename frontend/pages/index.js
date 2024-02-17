@@ -1,40 +1,24 @@
-import { useState } from 'react';
+import React, { useEffect, useRef } from "react";
+import { createRoot } from 'react-dom/client';
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
 
 export default function Home() {
-  const [url, setUrl] = useState('');
-  const [faq, setFaq] = useState('');
+  const rootRef = useRef(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/generate-faq', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({ url })
-});
-
-      const data = await response.json();
-      setFaq(data.faq);
-    } catch (error) {
-      console.error('Error:', error);
+  useEffect(() => {
+    if (!rootRef.current && typeof document !== "undefined") {
+      const domNode = document.getElementById('root');
+      const root = createRoot(domNode);
+      root.render(<App />);
+      rootRef.current = root;
     }
-  };
-  return (
-    <div>
-      <h1>FAQ GENERATOR</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Enter URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button type="submit">Generate</button>
-      </form>
-      {faq && <div>{faq}</div>}
-    </div>
-  );
+  }, []);
+
+  reportWebVitals();
+
+  // Since this is a functional component, it should return null
+  return null;
 }
+
+
