@@ -12,7 +12,8 @@ export default function App() {
     try {
       setLoading(true);
       setError("");
-
+      setFaq([]);
+      
       const response = await fetch(BASE_URL + "/generate-faq", {
         method: "POST",
         headers: {
@@ -24,7 +25,7 @@ export default function App() {
       setFaq(data.faq);
     } catch (error) {
       console.error("Error:", error);
-      setError("An error occurred while fetching FAQ. Please try again.");
+      setError("An error occurred while fetching FAQ. Please check the url and github repository.");
     } finally {
       setLoading(false);
     }

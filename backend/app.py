@@ -14,6 +14,10 @@ def generate_faq_route():
                 index = 0
                 while True:
                     faq = faq_generator(url)
+                    
+                    if faq == -1:
+                        return jsonify({'error': 'There is not any markdown file found in this repository. Please check the URL.'})
+                    
                     if len(faq) >= 60 or index >= 3:
                         break
                     index += 1

@@ -40,7 +40,7 @@ def main(repo_url):
     md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
     
     if (md_info == -1):  # check if there exists any .md files
-        return "There isn't any .md file in this repostory.Please check the link and repository."
+        return -1
 
     return string_to_list(create_faq(md_info,repo_identifier))    
 
