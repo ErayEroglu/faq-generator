@@ -35,14 +35,14 @@ def main(repo_url):
     repo_identifier = parse_github_url(repo_url)
     
     if (is_up_to_date(repo_identifier)):
-        return get_faq(repo_identifier)
+        return string_to_list(get_faq(repo_identifier))
         
     md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
     
     if (md_info == -1):  # check if there exists any .md files
         return "There isn't any .md file in this repostory.Please check the link and repository."
 
-    return create_faq(md_info,repo_identifier)    
+    return string_to_list(create_faq(md_info,repo_identifier))    
 
 # parse the repo link into username and repo name parts
 # then create repo identifier
@@ -180,19 +180,18 @@ def get_faq(repo_identifier):
     stored_faq, _ = json.loads(json_value)
     return stored_faq
 
-# faq = main("https://github.com/ErayEroglu/testing_repo")
+# crates a list from faq string
+# each question and answer is different elements, length should be 60
+def string_to_list(faq):
+    faq_items = faq.split("\n")
 
-# faq_items = faq.split("\n")
-
-# for item in faq_items:
-#     if item.startswith('1'):
-#         break
-#     faq_items.remove(item)
-    
-# for item in faq_items:
-#     if item == "":
-#         faq_items.remove(item)
+    for item in faq_items:
+        if item.startswith('1'):
+            break
+        faq_items.remove(item)
         
-# print(faq_items)
-# upstash.close()
-# upstash = None
+    for item in faq_items:
+        if item == "":
+            faq_items.remove(item)
+    
+    return faq_items

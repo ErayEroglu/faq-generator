@@ -14,10 +14,8 @@ export default function Home() {
       rootRef.current = root;
     }
   }, []);
-
   reportWebVitals();
-
-  // Since this is a functional component, it should return null
+  
   return null;
 }
 

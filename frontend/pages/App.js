@@ -1,4 +1,4 @@
-import { React, useState } from "react";
+import React, { useState } from "react";
 import TextField from "@mui/material/TextField";
 
 export default function App() {
@@ -6,12 +6,14 @@ export default function App() {
   const [faq, setFaq] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const BASE_URL = "http://127.0.0.1:5000";
 
   const inputHandler = async () => {
     try {
-      setLoading(true); // Set loading state to true while fetching data
-      setError(""); // Clear any previous error
-      const response = await fetch("http://127.0.0.1:5000/api/generate-faq", {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(BASE_URL + "/generate-faq", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -24,13 +26,13 @@ export default function App() {
       console.error("Error:", error);
       setError("An error occurred while fetching FAQ. Please try again.");
     } finally {
-      setLoading(false); // Set loading state back to false after fetching data
+      setLoading(false);
     }
   };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
-      e.preventDefault(); // Prevent the default form submission behavior
+      e.preventDefault();
       inputHandler();
     }
   };
@@ -41,18 +43,24 @@ export default function App() {
       <div className="search">
         <TextField
           id="outlined-basic"
-          onChange={(e) => setUrl(e.target.value)} // Update URL state
-          onKeyDown={handleKeyDown} // Call inputHandler when Enter key is pressed
-          variant="outlined"
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={handleKeyDown}
+          variant="filled"
           fullWidth
-          label="Enter URL and press Enter"
+          label="Insert the URL and press Enter"
         />
       </div>
       {loading && <p>Loading...</p>}
       {error && <p>{error}</p>}
       <ul>
         {faq.map((item, index) => (
-          <li key={index} style={{ marginBottom: index % 2 === 1 ? "20px" : "0" }}>
+          <li
+            key={index}
+            style={{
+              marginBottom: (faq[index + 1] && faq[index + 1].match(/^\d+\./)) ? "20px" : "0",
+              fontWeight: item.match(/^\d+\./) ? "bold" : "normal",
+            }}
+          >
             {item}
           </li>
         ))}
