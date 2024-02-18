@@ -34,8 +34,8 @@ upstash = redis.Redis(
 def main(repo_url):
     repo_identifier = parse_github_url(repo_url)
     
-    if (is_up_to_date(repo_identifier)):
-        return string_to_list(get_faq(repo_identifier))
+    # if (is_up_to_date(repo_identifier)):
+    #     return string_to_list(get_faq(repo_identifier))
         
     md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
     
@@ -61,7 +61,37 @@ def get_latest_commit_id(repository_identifier):
     return latest_commit.sha
 
 # find md files and parse the text parts
-def parse_markdown_files(repo_identifier, github_token,repo_url):
+# def parse_markdown_files(repo_identifier, github_token,repo_url):
+#     repo_url = urljoin(GITHUB_API_BASE, repo_identifier)
+#     headers = {"Authorization": f"token {github_token}"}
+
+#     contents_url = f"{repo_url}/contents"
+#     response = requests.get(contents_url, headers=headers)
+#     response.raise_for_status()
+#     contents = response.json()
+
+#     md = MarkdownIt()
+#     extracted_info = []
+#     number_of_md = 0
+    
+#     # extract text parts from md
+#     for content in contents:
+#         if content["type"] == "file" and (content["name"].lower().endswith(".md") or content["name"].lower().endswith(".mdx")):
+#             file_url = content["download_url"]
+#             response = requests.get(file_url, headers=headers)
+#             response.raise_for_status()
+            
+#             markdown_content = response.text
+#             parsed_content = md.parse(markdown_content)
+#             text = extract_text_from_markdown(parsed_content)
+#             extracted_info.append(text)
+#             number_of_md += 1
+    
+#     print(number_of_md)
+#     return (extracted_info,number_of_md) if number_of_md != 0 else -1
+
+
+def parse_markdown_files(repo_identifier, github_token, repo_url):
     repo_url = urljoin(GITHUB_API_BASE, repo_identifier)
     headers = {"Authorization": f"token {github_token}"}
 
@@ -70,24 +100,38 @@ def parse_markdown_files(repo_identifier, github_token,repo_url):
     response.raise_for_status()
     contents = response.json()
 
+    md_files = []
+    current_folder_info = []
     md = MarkdownIt()
-    extracted_info = []
-    number_of_md = 0
     
-    # extract text parts from md
     for content in contents:
-        if content["type"] == "file" and content["name"].lower().endswith(".md"):
+        print(content)
+        recursive_search(content,headers,current_folder_info,md)
+        md_files.append(current_folder_info)
+        print(current_folder_info)
+        current_folder_info = []
+
+    number_of_md = len(md_files)
+    return (md_files, number_of_md) if number_of_md != 0 else -1
+
+def recursive_search(content, headers, md_files,md):
+        if content["type"] == "file" and (content["name"].lower().endswith(".md") or content["name"].lower().endswith(".mdx")):
             file_url = content["download_url"]
             response = requests.get(file_url, headers=headers)
             response.raise_for_status()
-            
+
             markdown_content = response.text
             parsed_content = md.parse(markdown_content)
             text = extract_text_from_markdown(parsed_content)
-            extracted_info.append(text)
-            number_of_md += 1
-        
-    return (extracted_info,number_of_md) if number_of_md != 0 else -1
+            md_files.append(text)
+            
+        elif content["type"] == "dir":
+            # If the content is a directory, recursively search its contents
+            subdir_url = content["url"]
+            subdir_response = requests.get(subdir_url, headers=headers)
+            subdir_response.raise_for_status()
+            subdir_contents = subdir_response.json()
+            recursive_search(subdir_contents, headers, md_files,md)
 
 def extract_text_from_markdown(parsed_content):
     text_content = []
@@ -99,6 +143,7 @@ def chat(prompt,questions=""):
     message_history = []
     
     if questions != "":
+        
         message_history.append({"role": "assistant", "content": "Generated FAQ and their answers are :\n"})
         message_history.append({"role": "assistant", "content": questions})
     
@@ -115,7 +160,11 @@ def generate_faq(md_files, number_of_md):
     faqs = []
     index = 1
     number_of_questions = 10 if number_of_md > 2 else 30//number_of_md
+    if number_of_questions <= 1:
+        number_of_questions = 1
+    counter = 1
     for content in md_files:
+        print(counter)
         prompt = (
             f"Generate {number_of_questions} frequently asked questions (FAQ) for the following content."
             f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question."
@@ -132,6 +181,7 @@ def generate_faq(md_files, number_of_md):
         faq = response.choices[0].message.content
         faqs.append(faq)
         index += number_of_questions
+        counter += 1
     return faqs
 
 # chooses the most important faq from generated questioons 
@@ -195,3 +245,8 @@ def string_to_list(faq):
             faq_items.remove(item)
     
     return faq_items
+
+
+# repo = "https://github.com/upstash/docs"
+# faq = main(repo)
+# print(faq)
