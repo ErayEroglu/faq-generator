@@ -34,6 +34,7 @@ upstash = redis.Redis(
 def main(repo_url):
     repo_identifier = parse_github_url(repo_url)
     
+    # TODO: UNCOMMENT
     # if (is_up_to_date(repo_identifier)):
     #     return string_to_list(get_faq(repo_identifier))
         
@@ -42,7 +43,7 @@ def main(repo_url):
     if (md_info == -1):  # check if there exists any .md files
         return -1
 
-    return string_to_list(create_faq(md_info,repo_identifier))    
+    return create_faq(md_info,repo_identifier)
 
 # parse the repo link into username and repo name parts
 # then create repo identifier
@@ -103,20 +104,28 @@ def parse_markdown_files(repo_identifier, github_token, repo_url):
     md_files = []
     current_folder_info = []
     md = MarkdownIt()
-    
+    index = 0
     for content in contents:
-        print(content)
         recursive_search(content,headers,current_folder_info,md)
-        md_files.append(current_folder_info)
-        print(current_folder_info)
+        text = "/n".join(current_folder_info)
+        md_files.append(text)
         current_folder_info = []
-
+        index +=1
+        
     number_of_md = len(md_files)
     return (md_files, number_of_md) if number_of_md != 0 else -1
 
-def recursive_search(content, headers, md_files,md):
-        if content["type"] == "file" and (content["name"].lower().endswith(".md") or content["name"].lower().endswith(".mdx")):
-            file_url = content["download_url"]
+def recursive_search(contents, headers, md_files, md):
+    if isinstance(contents, list):
+        for content in contents:
+            scan_directory(content,headers,md_files,md)
+                
+    elif isinstance(contents, dict):
+        scan_directory(contents,headers,md_files,md)
+
+def scan_directory(contents,headers,md_files,md):
+    if contents["type"] == "file" and (contents["name"].lower().endswith(".md") or contents["name"].lower().endswith(".mdx")):
+            file_url = contents["download_url"]
             response = requests.get(file_url, headers=headers)
             response.raise_for_status()
 
@@ -125,13 +134,15 @@ def recursive_search(content, headers, md_files,md):
             text = extract_text_from_markdown(parsed_content)
             md_files.append(text)
             
-        elif content["type"] == "dir":
-            # If the content is a directory, recursively search its contents
-            subdir_url = content["url"]
-            subdir_response = requests.get(subdir_url, headers=headers)
-            subdir_response.raise_for_status()
-            subdir_contents = subdir_response.json()
-            recursive_search(subdir_contents, headers, md_files,md)
+    elif contents["type"] == "dir":
+        # If the content is a directory, recursively search its contents
+        subdir_url = contents["url"]
+        subdir_response = requests.get(subdir_url, headers=headers)
+        subdir_response.raise_for_status()
+        subdir_contents = subdir_response.json()
+        recursive_search(subdir_contents, headers, md_files, md)
+
+
 
 def extract_text_from_markdown(parsed_content):
     text_content = []
@@ -150,7 +161,7 @@ def chat(prompt,questions=""):
     message_history.append({"role": "user", "content": prompt})
     
     response = client.chat.completions.create(
-        model = "gpt-3.5-turbo-0125",
+        model = "gpt-4-0125-preview",
         messages = message_history
     )
     return response
@@ -159,40 +170,51 @@ def chat(prompt,questions=""):
 def generate_faq(md_files, number_of_md):
     faqs = []
     index = 1
-    number_of_questions = 10 if number_of_md > 2 else 30//number_of_md
-    if number_of_questions <= 1:
-        number_of_questions = 1
-    counter = 1
+    # number_of_questions = 10 if number_of_md > 2 else 30//number_of_md
+    number_of_questions = 20
+    
     for content in md_files:
-        print(counter)
+        if content == "":
+            continue
+        
         prompt = (
             f"Generate {number_of_questions} frequently asked questions (FAQ) for the following content."
             f"Then, rewrite the question you've chosen first as a title and after writing the question as a title, under that title, provide the answer to the question."
             f"Afterwards, repeat the same process for all generated questions one by one, rewriting the question first then answering the question under the question."
             f"I want these question and answer paragraphs enumerated, starting from {index} to {index + number_of_questions - 1}"
             f"For example:\n"
-            f"{index}. How to write prompts?\n"
+            f"1. How to write prompts?\n"
             f"In order to write prompts, you need to ....\n"
-            f"{index + number_of_questions -1}. How to edit a written prompt?\n"
+            f"20. How to edit a written prompt?\n"
             f"Editing a prompt is easy, you need to.....\n"
             f"Content :\n{content}"
         )
+        # TODO: DELETE
+        print(index)
         response = chat(prompt)
         faq = response.choices[0].message.content
         faqs.append(faq)
         index += number_of_questions
-        counter += 1
+
     return faqs
 
 # chooses the most important faq from generated questioons 
 def choose_faq(faqs):
-    questions = "\n".join(faqs) 
-    prompt = (
-        f"Examine all generated FAQ and their answers, then reorder them by considiring the level of importance,from the most important one to least important one.\n"
-        f"Write the first thirty questions and their answers from the ordered list."
-    )
-    response = chat(prompt,questions)
-    return response.choices[0].message.content
+    chosen_faq = []
+    index = 1
+    for faq in faqs:
+        questions = "".join(faq) 
+        prompt = (
+            f"Examine all generated FAQ and their answers, then reorder them by considiring the level of importance,from the most important one to least important one."
+            f"When considering importance, focus on identifying the parts where users may struggle to understand the content and require assistance. Detect the most complex and complicated sections."
+            f"Write the first 5 questions and their answers from the ordered list, enumerate them as well starting from {index}."
+        )
+        response = chat(prompt,questions)
+        faq = response.choices[0].message.content
+        string_to_list(faq,index,chosen_faq)
+        index += 5
+    
+    return chosen_faq
 
 # creates faq if the repo is updated or not in the database
 def create_faq(md_info,repo_identifier):
@@ -232,21 +254,19 @@ def get_faq(repo_identifier):
 
 # crates a list from faq string
 # each question and answer is different elements, length should be 60
-def string_to_list(faq):
+def string_to_list(faq,index,list):
     faq_items = faq.split("\n")
 
     for item in faq_items:
-        if item.startswith('1'):
+        if item.startswith(f"{index}"):
             break
         faq_items.remove(item)
         
     for item in faq_items:
-        if item == "":
-            faq_items.remove(item)
-    
-    return faq_items
+        if item != "":
+            list.append(item)
 
 
 # repo = "https://github.com/upstash/docs"
 # faq = main(repo)
-# print(faq)
+# print("\n".join(faq))
