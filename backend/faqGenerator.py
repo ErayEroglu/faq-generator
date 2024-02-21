@@ -31,19 +31,24 @@ upstash = redis.Redis(
     password=UPSTASH_PASSWORD,
 )
 
-def main(repo_url):
-    repo_identifier = parse_github_url(repo_url)
+def main(urls):
+    # repo_identifier = parse_github_url(repo_url)
     
-    # TODO: UNCOMMENT
-    # if (is_up_to_date(repo_identifier)):
-    #     return string_to_list(get_faq(repo_identifier))
+    # # TODO: UNCOMMENT
+    # # if (is_up_to_date(repo_identifier)):
+    # #     return string_to_list(get_faq(repo_identifier))
         
-    md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
+    # md_info = parse_markdown_files(repo_identifier,GITHUB_ACCESS_TOKEN,repo_url)
     
-    if (md_info == -1):  # check if there exists any .md files
-        return -1
+    # if (md_info == -1):  # check if there exists any .md files
+    #     return -1
 
-    return create_faq(md_info,repo_identifier)
+    # return create_faq(md_info,repo_identifier)
+    
+    contents = get_contents(urls,GITHUB_ACCESS_TOKEN)
+    faq = generate_faq(contents,len(contents))
+    faqs = choose_faq(faq)
+    return faqs
 
 # parse the repo link into username and repo name parts
 # then create repo identifier
@@ -61,8 +66,7 @@ def get_latest_commit_id(repository_identifier):
     latest_commit = repo.get_commits()[0]
     return latest_commit.sha
 
-# find md files and parse the text parts
-# def parse_markdown_files(repo_identifier, github_token,repo_url):
+# def parse_markdown_files(repo_identifier, github_token, repo_url):
 #     repo_url = urljoin(GITHUB_API_BASE, repo_identifier)
 #     headers = {"Authorization": f"token {github_token}"}
 
@@ -71,84 +75,88 @@ def get_latest_commit_id(repository_identifier):
 #     response.raise_for_status()
 #     contents = response.json()
 
+#     md_files = []
+#     current_folder_info = []
 #     md = MarkdownIt()
-#     extracted_info = []
-#     number_of_md = 0
-    
-#     # extract text parts from md
+#     index = 0
 #     for content in contents:
-#         if content["type"] == "file" and (content["name"].lower().endswith(".md") or content["name"].lower().endswith(".mdx")):
-#             file_url = content["download_url"]
+#         recursive_search(content,headers,current_folder_info,md)
+#         text = "/n".join(current_folder_info)
+#         md_files.append(text)
+#         current_folder_info = []
+#         index +=1
+        
+#     number_of_md = len(md_files)
+#     return (md_files, number_of_md) if number_of_md != 0 else -1
+
+# def recursive_search(contents, headers, md_files, md):
+#     if isinstance(contents, list):
+#         for content in contents:
+#             scan_directory(content,headers,md_files,md)
+                
+#     elif isinstance(contents, dict):
+#         scan_directory(contents,headers,md_files,md)
+
+# def scan_directory(contents,headers,md_files,md):
+#     if contents["type"] == "file" and (contents["name"].lower().endswith(".md") or contents["name"].lower().endswith(".mdx")):
+#             file_url = contents["download_url"]
 #             response = requests.get(file_url, headers=headers)
 #             response.raise_for_status()
-            
+
 #             markdown_content = response.text
 #             parsed_content = md.parse(markdown_content)
 #             text = extract_text_from_markdown(parsed_content)
-#             extracted_info.append(text)
-#             number_of_md += 1
-    
-#     print(number_of_md)
-#     return (extracted_info,number_of_md) if number_of_md != 0 else -1
-
-
-def parse_markdown_files(repo_identifier, github_token, repo_url):
-    repo_url = urljoin(GITHUB_API_BASE, repo_identifier)
-    headers = {"Authorization": f"token {github_token}"}
-
-    contents_url = f"{repo_url}/contents"
-    response = requests.get(contents_url, headers=headers)
-    response.raise_for_status()
-    contents = response.json()
-
-    md_files = []
-    current_folder_info = []
-    md = MarkdownIt()
-    index = 0
-    for content in contents:
-        recursive_search(content,headers,current_folder_info,md)
-        text = "/n".join(current_folder_info)
-        md_files.append(text)
-        current_folder_info = []
-        index +=1
-        
-    number_of_md = len(md_files)
-    return (md_files, number_of_md) if number_of_md != 0 else -1
-
-def recursive_search(contents, headers, md_files, md):
-    if isinstance(contents, list):
-        for content in contents:
-            scan_directory(content,headers,md_files,md)
-                
-    elif isinstance(contents, dict):
-        scan_directory(contents,headers,md_files,md)
-
-def scan_directory(contents,headers,md_files,md):
-    if contents["type"] == "file" and (contents["name"].lower().endswith(".md") or contents["name"].lower().endswith(".mdx")):
-            file_url = contents["download_url"]
-            response = requests.get(file_url, headers=headers)
-            response.raise_for_status()
-
-            markdown_content = response.text
-            parsed_content = md.parse(markdown_content)
-            text = extract_text_from_markdown(parsed_content)
-            md_files.append(text)
+#             md_files.append(text)
             
-    elif contents["type"] == "dir":
-        # If the content is a directory, recursively search its contents
-        subdir_url = contents["url"]
-        subdir_response = requests.get(subdir_url, headers=headers)
-        subdir_response.raise_for_status()
-        subdir_contents = subdir_response.json()
-        recursive_search(subdir_contents, headers, md_files, md)
+#     elif contents["type"] == "dir":
+#         # If the content is a directory, recursively search its contents
+#         subdir_url = contents["url"]
+#         subdir_response = requests.get(subdir_url, headers=headers)
+#         subdir_response.raise_for_status()
+#         subdir_contents = subdir_response.json()
+#         recursive_search(subdir_contents, headers, md_files, md)
 
+def get_contents(url_list, github_token = GITHUB_ACCESS_TOKEN):
+    contents = []
+    md = MarkdownIt()
+    headers = {"Authorization": f"token {github_token}"}
+    
+    for url in url_list:
+        contents.append(get_markdown_content(url, md, headers))      
+    return contents
 
+def get_markdown_content(file_url, md, headers):
+    response = requests.get(file_url, headers)
+    response.raise_for_status()
+    
+    if response.status_code == 200:
+        # Parse JSON data
+        json_data = response.json()
+        raw_lines = json_data["payload"]["blob"]["rawLines"]
+        text = "\n".join(raw_lines)
+        
+        # Extract text directly from JSON
+        return text
+    else:
+        return None
 
-def extract_text_from_markdown(parsed_content):
-    text_content = []
-    for node in parsed_content:
-        text_content.append(node.content.strip()) 
-    return "".join(text_content)
+# def extract_text_from_markdown(markdown_content):
+#     # Parse markdown content using BeautifulSoup
+#     soup = BeautifulSoup(markdown_content, 'html.parser')
+#     # Extract text from parsed content
+#     text = soup.get_text(separator='\n')
+#     return text
+
+# def extract_text_from_json(json_data):
+#     markdown_content = json_data["payload"]["blob"]["rawLines"]
+#     text = extract_text_from_markdown(markdown_content)
+#     return text
+   
+# def extract_text_from_markdown(parsed_content):
+#     text_content = []
+#     for node in parsed_content:
+#         text_content.append(node.content.strip()) 
+#     return "".join(text_content)
 
 def chat(prompt,questions=""):
     message_history = []
@@ -161,7 +169,8 @@ def chat(prompt,questions=""):
     message_history.append({"role": "user", "content": prompt})
     
     response = client.chat.completions.create(
-        model = "gpt-4-0125-preview",
+        # model = "gpt-4-0125-preview",
+        model = "gpt-3.5-turbo-0125",
         messages = message_history
     )
     return response
@@ -267,6 +276,7 @@ def string_to_list(faq,index,list):
             list.append(item)
 
 
-# repo = "https://github.com/upstash/docs"
-# faq = main(repo)
-# print("\n".join(faq))
+# repo = "https://github.com/ErayEroglu/testing_repo"
+# repo_list = ["https://github.com/upstash/docs/blob/main/_snippets/faq-snippet.mdx","https://github.com/upstash/docs/blob/main/_snippets/compliance-snippet.mdx"]
+# faq = main(repo_list)
+# print(faq)

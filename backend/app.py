@@ -8,9 +8,10 @@ CORS(app)
 @app.route('/generate-faq', methods=['POST'])
 def generate_faq_route():
     if request.method == 'POST':
-        url = request.json.get('url')
+        url = request.json.get('urls')
         if url:
             try:
+                # faq = faq_generator(url)
                 faq = faq_generator(url)
                 if faq == -1:
                     return jsonify({'error': 'There is not any markdown file found in this repository. Please check the URL.'})
